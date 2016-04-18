@@ -1,0 +1,217 @@
+//***********************************************//
+//******** Inductive Spark Plug Sensor***********//
+//************ RPM Meter Shift Light ************//
+//******************with Arduino*****************//
+//***********************************************//
+//**********Designed and Programmed**************//
+//************by Kostas Kokoras******************//
+//************kostas@kokoras.com*****************//
+
+
+int BinaryPins[] = {3,4,5,6};
+
+int decades;
+int monades;
+  
+const int ignitionPin = 2;
+const int ignitionInterrupt = 0;
+const unsigned int pulsesPerRev = 1;
+
+const int ledpin_green=7;
+const int ledpin_yellow=8;
+const int ledpin_red=9;
+
+const int led_dec=10;
+const int led_mon=11;
+
+const int dip_sw1=12;
+const int dip_sw2=13;
+const int dip_sw3=A0;
+const int dip_sw4=A1;
+
+unsigned long lastPulseTime = 0;
+unsigned long rpm = 0;
+int rpm_int;
+int rpm_to_disp;
+
+
+int disp_bright;
+
+int shift_light_rpm;
+
+
+
+
+void setup() {  
+
+  Serial.begin(9600);  
+  pinMode(3, OUTPUT);   
+  pinMode(4, OUTPUT);
+  pinMode(5, OUTPUT);
+  pinMode(6, OUTPUT);
+  
+  
+  pinMode(ledpin_green, OUTPUT);
+  pinMode(ledpin_yellow, OUTPUT);
+  pinMode(ledpin_red, OUTPUT);
+  
+  pinMode(led_dec, OUTPUT);
+  digitalWrite(led_dec,HIGH);
+  pinMode(led_mon,OUTPUT);
+  digitalWrite(led_mon,HIGH);
+  
+  pinMode(ignitionPin, INPUT);
+  attachInterrupt(ignitionInterrupt, &ignitionIsr, RISING);
+  
+ 
+  
+  pinMode(dip_sw1,INPUT); //-----------------------------
+  pinMode(dip_sw2,INPUT); //shift light rpm configuration
+  pinMode(dip_sw3,INPUT); //-----------------------------
+  pinMode(dip_sw4,INPUT); //on=full brightness of 7-segments----off=low brightness of 7 segments
+  
+  if (digitalRead(dip_sw4)==HIGH) disp_bright=0; else disp_bright=200;
+  
+  chk_dips();
+
+  demo();
+  
+  digitalWrite(ledpin_green,LOW);
+  digitalWrite(ledpin_yellow,LOW);
+  digitalWrite(ledpin_red,LOW);
+  
+  
+}
+
+void demo(){
+
+  for(int i=0;i<10;i++){
+    if (i==3) digitalWrite(ledpin_green,HIGH);
+    if (i==5) digitalWrite(ledpin_yellow,HIGH);
+    if (i==8) digitalWrite(ledpin_red,HIGH);
+    for(int j=0;j<10;j++){
+      sevenSegWriteDec(i);
+      delay(10);
+      sevenSegWriteMon(j); 
+      delay(10);
+    }
+  }  
+  
+  for(int i=9;i>-1;i--){
+    if (i==3) digitalWrite(ledpin_green,LOW);
+    if (i==5) digitalWrite(ledpin_yellow,LOW);
+    if (i==8) digitalWrite(ledpin_red,LOW);
+    for(int j=9;j>-1;j--){
+      sevenSegWriteDec(i);
+      delay(10);
+      sevenSegWriteMon(j); 
+      delay(10);
+    }
+  }
+}
+
+void ignitionIsr()
+{
+  unsigned long now = micros();
+  unsigned long interval = now - lastPulseTime;
+  if (interval > 5000)
+  {
+     rpm = 60000000UL/(interval * pulsesPerRev);
+     lastPulseTime = now;
+     //rpm_int=int(rpm);
+  }  
+  
+}
+
+    
+void sevenSegWriteDec(int digit) {
+  
+  if (digit>0) analogWrite(led_dec,disp_bright); else digitalWrite(led_dec,HIGH);
+  digitalWrite(led_mon,HIGH);
+  
+  for (byte i = 0; i < 4; ++i) {
+    int dec_val=digit&1;
+    digitalWrite(BinaryPins[i],dec_val);
+    digit=digit>>1;
+  }
+}
+void sevenSegWriteMon(int digit) {
+  
+  digitalWrite(led_dec,HIGH);
+  analogWrite(led_mon,disp_bright);
+  
+  for (byte i = 0; i < 4; ++i) {
+    int mon_val=digit&1;
+    digitalWrite(BinaryPins[i],mon_val);
+    digit=digit>>1;
+  }
+}
+
+void chk_dips(){
+  int dip_val;
+  
+  dip_val=digitalRead(dip_sw1);
+  dip_val=dip_val << 1;
+  dip_val=dip_val+digitalRead(dip_sw2);
+  dip_val=dip_val << 1;
+  dip_val=dip_val+digitalRead(dip_sw3);
+  
+  switch (dip_val){
+    case 0:shift_light_rpm=0;
+    break;
+    case 1:shift_light_rpm=45;
+    break;
+    case 2:shift_light_rpm=50;
+    break;
+    case 3:shift_light_rpm=55;
+    break;
+    case 4:shift_light_rpm=60;
+    break;
+    case 5:shift_light_rpm=65;
+    break;
+    case 6:shift_light_rpm=70;
+    break;
+    case 7:shift_light_rpm=75;
+    break;
+  }
+}
+
+void loop() {
+  
+  
+  
+  
+  noInterrupts();
+  rpm_to_disp=int(rpm);
+  interrupts();
+  
+
+   
+  if ((rpm_to_disp>399) && (rpm_to_disp<10000)){
+
+   rpm_to_disp=rpm_to_disp/100;
+   decades=rpm_to_disp / 10;
+   monades=rpm_to_disp % 10;
+   
+  
+   sevenSegWriteDec(decades);
+   delay(10);
+   sevenSegWriteMon(monades); 
+   delay(10);
+   
+  
+  if (shift_light_rpm>0){
+  if (rpm_to_disp>=shift_light_rpm-10) digitalWrite(ledpin_green,HIGH); else digitalWrite(ledpin_green,LOW);
+  if (rpm_to_disp>=shift_light_rpm-5) digitalWrite(ledpin_yellow,HIGH); else digitalWrite(ledpin_yellow,LOW);
+  if (rpm_to_disp>=shift_light_rpm) digitalWrite(ledpin_red,HIGH); else digitalWrite(ledpin_red,LOW);
+  }
+
+
+  }
+  else
+  {
+    digitalWrite(led_dec,HIGH);
+    digitalWrite(led_mon,HIGH);
+  }
+    
+}
